@@ -125,11 +125,12 @@ pnpm db:push
 |--------|--------|
 | Framework preset | None |
 | Build command | `corepack enable && pnpm install && pnpm --filter @tg-cal/miniapp build` |
-| **Deploy command** | **leave EMPTY** (do not use `npx wrangler deploy`) |
+| **Deploy command** | `npx wrangler pages deploy apps/miniapp/dist --project-name=telegramcalendar` |
 | Build output directory | `apps/miniapp/dist` |
 | Root directory | `/` (repo root) |
 
-If Deploy command is set to `npx wrangler deploy`, the build can succeed and then fail on deploy. Clear it and **Retry deployment**.
+Do **not** use `npx wrangler deploy` (that is for Workers and fails in a monorepo).  
+If the UI refuses an empty Deploy command, use the `wrangler pages deploy …` line above (project name = your Pages project name).
 
 3. Environment variable (Production):
 
