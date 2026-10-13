@@ -20,12 +20,15 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM deps AS build
 COPY . .
+ARG VITE_API_URL=https://telegram-calendar-2026-10-13.fly.dev
+ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter @tg-cal/shared build \
  && pnpm --filter @tg-cal/db generate \
  && pnpm --filter @tg-cal/db build \
  && pnpm --filter @tg-cal/bot build \
  && pnpm --filter @tg-cal/api build \
- && pnpm --filter @tg-cal/server build
+ && pnpm --filter @tg-cal/server build \
+ && pnpm --filter @tg-cal/miniapp build
 
 FROM base AS runner
 ENV NODE_ENV=production

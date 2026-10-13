@@ -116,7 +116,23 @@ pnpm db:push
 
 ---
 
-## 5) Cloudflare Pages (Mini App)
+## 5) Mini App hosting
+
+**Recommended (current setup):** the Mini App is built into the Fly Docker image and served from the same URL as the API:
+
+`https://telegram-calendar-2026-10-13.fly.dev`
+
+Point BotFather Mini App URL to that address. Set:
+
+```bash
+fly secrets set PUBLIC_MINIAPP_URL="https://telegram-calendar-2026-10-13.fly.dev"
+```
+
+### Optional: Cloudflare Pages (Mini App)
+
+Cloudflare Git builds often fail on custom `wrangler deploy` auth. Prefer Fly hosting above.
+
+If you still want Cloudflare Pages:
 
 1. Cloudflare Dashboard → **Workers & Pages** → your Pages project → **Settings** → **Builds & deployments**.  
 2. Build settings (important: this must be **Pages**, not Workers):
