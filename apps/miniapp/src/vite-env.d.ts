@@ -53,6 +53,13 @@ interface TelegramWebApp {
   };
   setHeaderColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
+  LocationManager?: {
+    init: (cb?: () => void) => void;
+    getLocation: (
+      cb: (loc: { latitude: number; longitude: number } | null) => void,
+    ) => void;
+  };
 }
 
 interface Window {

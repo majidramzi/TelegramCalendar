@@ -37,8 +37,15 @@ export interface EventDto {
   endsAt: string | null;
   allDay: boolean;
   location: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  emoji: string;
+  rsvpPublic: boolean;
+  rsvpLocked: boolean;
   createdBy: string;
   remindBefore: number[];
   rsvpCounts?: Record<RsvpStatus, number>;
+  /** Present only when rsvpPublic is true. */
+  rsvpVoters?: Partial<Record<RsvpStatus, string[]>>;
   myRsvp?: RsvpStatus | null;
 }

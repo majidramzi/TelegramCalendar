@@ -1,6 +1,12 @@
-import { InlineKeyboard } from "grammy";
+import { InlineKeyboard, InputFile } from "grammy";
 import type { Api } from "grammy";
-import { prisma, type Chat, type Event } from "@tg-cal/db";
+import { prisma, type Chat, type Event, type RsvpStatus } from "@tg-cal/db";
+import {
+  buildPersonalIcs,
+  formatAnnouncement,
+  type AnnouncementVoter,
+  type PersonalIcsStatus,
+} from "@tg-cal/shared";
 import { rsvpCounts } from "./events.js";
 
 export function rsvpKeyboard(eventId: string, counts?: {
@@ -16,24 +22,14 @@ export function rsvpKeyboard(eventId: string, counts?: {
     .text(`❌ No (${c.not_going})`, `rsvp:${eventId}:not_going`);
 }
 
-export function formatAnnouncement(event: Event, timezone = "UTC"): string {
-  const when = event.startsAt.toLocaleString("en-GB", {
-    timeZone: timezone,
-    dateStyle: "full",
-    timeStyle: event.allDay ? undefined : "short",
-  });
-  const lines = [
-    `📢 *New event*`,
-    `*${escapeMd(event.title)}*`,
-    when,
-  ];
-  if (event.location) lines.push(`📍 ${escapeMd(event.location)}`);
-  if (event.description) lines.push(`\n${escapeMd(event.description)}`);
-  return lines.join("\n");
-}
+export { formatAnnouncement };
 
-function escapeMd(text: string): string {
-  return text.replace(/([_*`\[])/g, "\\$1");
+async function loadVoters(eventId: string): Promise<AnnouncementVoter[]> {
+  const rows = await prisma.rsvp.findMany({ where: { eventId } });
+  return rows.map((r) => ({
+    status: r.status as AnnouncementVoter["status"],
+    displayName: r.displayName || `User ${r.userId.toString()}`,
+  }));
 }
 
 export async function announceEvent(
@@ -42,13 +38,15 @@ export async function announceEvent(
   event: Event,
 ): Promise<void> {
   const counts = await rsvpCounts(event.id);
+  const voters = event.rsvpPublic ? await loadVoters(event.id) : undefined;
   try {
     const msg = await api.sendMessage(
       Number(chat.telegramChatId),
-      formatAnnouncement(event, chat.timezone),
+      formatAnnouncement(event, chat.timezone, { voters }),
       {
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: rsvpKeyboard(event.id, counts),
+        link_preview_options: { is_disabled: true },
       },
     );
     await prisma.event.update({
@@ -71,17 +69,51 @@ export async function refreshAnnouncementMessage(
   if (!event?.announcementMessageId) return;
 
   const counts = await rsvpCounts(event.id);
+  const voters = event.rsvpPublic ? await loadVoters(event.id) : undefined;
   try {
     await api.editMessageText(
       Number(event.chat.telegramChatId),
       event.announcementMessageId,
-      formatAnnouncement(event, event.chat.timezone),
+      formatAnnouncement(event, event.chat.timezone, { voters }),
       {
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: rsvpKeyboard(event.id, counts),
+        link_preview_options: { is_disabled: true },
       },
     );
   } catch (err) {
     console.error("Failed to refresh announcement", err);
+  }
+}
+
+export async function sendPersonalCalendarInvite(
+  api: Api,
+  userId: number,
+  event: Event,
+  status: RsvpStatus | PersonalIcsStatus,
+  sequence: number,
+): Promise<void> {
+  const ics = buildPersonalIcs({
+    event,
+    userId,
+    status: status as PersonalIcsStatus,
+    sequence,
+  });
+  const caption =
+    status === "not_going"
+      ? "Calendar update: open this file to remove/cancel the event on your phone."
+      : status === "maybe"
+        ? "Calendar update: open this file to save as tentative on your phone."
+        : "Calendar update: open this file to add/update the event on your phone.";
+
+  const filename = `${event.title.replace(/[^\w.-]+/g, "_").slice(0, 40) || "event"}.ics`;
+  try {
+    await api.sendDocument(
+      userId,
+      new InputFile(Buffer.from(ics, "utf8"), filename),
+      { caption },
+    );
+  } catch (err) {
+    console.error("Failed to send personal calendar file", err);
   }
 }

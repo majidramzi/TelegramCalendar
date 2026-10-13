@@ -9,8 +9,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./announce": {
+      "types": "./dist/announce.d.ts",
+      "import": "./dist/announce.js"
     }
   },
+
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch"

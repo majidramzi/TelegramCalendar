@@ -50,8 +50,16 @@ export interface ChatInfo {
 }
 
 export function fetchChat() {
+  const timezone = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch {
+      return "";
+    }
+  })();
+  const q = timezone ? `?timezone=${encodeURIComponent(timezone)}` : "";
   return api<{ id: string; title: string; type: string; timezone: string; permissionMode: string }>(
-    "/api/chat",
+    `/api/chat${q}`,
   );
 }
 
@@ -75,6 +83,12 @@ export function createEvent(body: {
   endsAt?: string | null;
   allDay?: boolean;
   location?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  emoji?: string;
+  rsvpPublic?: boolean;
+  rsvpLocked?: boolean;
+  timezone?: string;
 }) {
   return api<{ event: EventDto }>("/api/events", {
     method: "POST",
@@ -91,6 +105,12 @@ export function updateEvent(
     endsAt: string | null;
     allDay: boolean;
     location: string | null;
+    locationLat: number | null;
+    locationLng: number | null;
+    emoji: string;
+    rsvpPublic: boolean;
+    rsvpLocked: boolean;
+    timezone: string;
   }>,
 ) {
   return api<{ event: EventDto }>(`/api/events/${id}`, {

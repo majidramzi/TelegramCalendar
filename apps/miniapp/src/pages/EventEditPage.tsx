@@ -48,6 +48,12 @@ export function EventEditPage({ locale, mode }: Props) {
         endsAt: values.endsAt || null,
         allDay: values.allDay,
         location: values.location || null,
+        locationLat: values.locationLat,
+        locationLng: values.locationLng,
+        emoji: values.emoji,
+        rsvpPublic: values.rsvpPublic,
+        rsvpLocked: values.rsvpLocked,
+        timezone: values.timezone,
       };
       const result =
         mode === "create"
@@ -79,6 +85,11 @@ export function EventEditPage({ locale, mode }: Props) {
                 endsAt: initial.endsAt ?? "",
                 allDay: initial.allDay,
                 location: initial.location ?? "",
+                locationLat: initial.locationLat,
+                locationLng: initial.locationLng,
+                emoji: initial.emoji,
+                rsvpPublic: initial.rsvpPublic,
+                rsvpLocked: initial.rsvpLocked,
               }
             : undefined
         }

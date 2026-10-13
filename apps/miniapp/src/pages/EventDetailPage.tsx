@@ -4,6 +4,7 @@ import type { EventDto, RsvpStatus } from "@tg-cal/shared";
 import { deleteEvent, fetchEvent, setRsvp } from "../api";
 import type { Locale } from "../i18n";
 import { t } from "../i18n";
+import { openInMaps } from "../maps";
 
 interface Props {
   locale: Locale;
@@ -67,24 +68,56 @@ export function EventDetailPage({ locale }: Props) {
     return <p className="error">{error ?? t(locale, "error")}</p>;
   }
 
-  const when = new Date(event.startsAt).toLocaleString(
-    locale === "fa" ? "fa-IR" : "en-GB",
-    {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(locale === "fa" ? "fa-IR" : "en-GB", {
       dateStyle: "full",
       timeStyle: event.allDay ? undefined : "short",
-    },
-  );
+    });
 
   const counts = event.rsvpCounts ?? { going: 0, maybe: 0, not_going: 0 };
+  const hasMap = event.locationLat != null && event.locationLng != null;
+  const voters = event.rsvpVoters;
 
   return (
     <div className="detail">
-      <h2>{event.title}</h2>
-      <div className="meta">{when}</div>
-      {event.location && <p>📍 {event.location}</p>}
+      <h2>
+        {event.emoji || "📢"} {event.title}
+      </h2>
+      <div className="meta">
+        <div>
+          {t(locale, "startsAt")}: {fmt(event.startsAt)}
+        </div>
+        {event.endsAt && (
+          <div>
+            {t(locale, "endsAt")}: {fmt(event.endsAt)}
+          </div>
+        )}
+      </div>
+      {event.location && !hasMap && <p>📍 {event.location}</p>}
+      {hasMap && (
+        <button
+          type="button"
+          className="map-link"
+          onClick={() =>
+            openInMaps(event.locationLat!, event.locationLng!, event.location)
+          }
+        >
+          📍 {event.location || t(locale, "openMap")}
+        </button>
+      )}
       {event.description && <p>{event.description}</p>}
 
       <h3>{t(locale, "rsvp")}</h3>
+      <p className="hint">
+        {event.rsvpPublic
+          ? t(locale, "rsvpPublicHint")
+          : t(locale, "rsvpPrivateHint")}
+      </p>
+      <p className="hint">
+        {event.rsvpLocked
+          ? t(locale, "rsvpLockedHint")
+          : t(locale, "rsvpUnlockedHint")}
+      </p>
       <div className="rsvp-row">
         <button
           type="button"
@@ -111,6 +144,36 @@ export function EventDetailPage({ locale }: Props) {
           {t(locale, "notGoing")} ({counts.not_going})
         </button>
       </div>
+
+      {event.rsvpPublic && voters && (
+        <div>
+          {(["going", "maybe", "not_going"] as const).map((status) => {
+            const names = voters[status] ?? [];
+            const label =
+              status === "going"
+                ? t(locale, "going")
+                : status === "maybe"
+                  ? t(locale, "maybe")
+                  : t(locale, "notGoing");
+            return (
+              <div key={status}>
+                <h4>
+                  {label} ({names.length})
+                </h4>
+                {names.length > 0 ? (
+                  <ul className="voter-list">
+                    {names.map((n) => (
+                      <li key={`${status}-${n}`}>{n}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="hint">—</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {error && <p className="error">{error}</p>}
 

@@ -59,11 +59,26 @@ export async function upsertRsvp(
   eventId: string,
   userId: bigint,
   status: RsvpStatus,
+  displayName?: string | null,
 ) {
+  const existing = await prisma.rsvp.findUnique({
+    where: { eventId_userId: { eventId, userId } },
+  });
+  const nextSequence = (existing?.icsSequence ?? 0) + 1;
   return prisma.rsvp.upsert({
     where: { eventId_userId: { eventId, userId } },
-    create: { eventId, userId, status },
-    update: { status },
+    create: {
+      eventId,
+      userId,
+      status,
+      displayName: displayName ?? null,
+      icsSequence: 1,
+    },
+    update: {
+      status,
+      icsSequence: nextSequence,
+      ...(displayName ? { displayName } : {}),
+    },
   });
 }
 
@@ -86,7 +101,14 @@ export function formatEventLine(event: Event, timezone = "UTC"): string {
     dateStyle: "medium",
     timeStyle: event.allDay ? undefined : "short",
   });
-  return `• *${escapeMd(event.title)}*\n  ${when}\n  \`${event.id.slice(0, 8)}\``;
+  const end = event.endsAt
+    ? event.endsAt.toLocaleString("en-GB", {
+        timeZone: timezone,
+        timeStyle: "short",
+      })
+    : null;
+  const whenLine = end ? `${when} → ${end}` : when;
+  return `• *${escapeMd(event.title)}*\n  ${whenLine}\n  \`${event.id.slice(0, 8)}\``;
 }
 
 function escapeMd(text: string): string {

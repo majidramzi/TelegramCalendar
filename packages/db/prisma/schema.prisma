@@ -49,6 +49,14 @@ model Event {
   endsAt        DateTime?
   allDay        Boolean  @default(false)
   location      String?
+  locationLat   Float?
+  locationLng   Float?
+  /** Announcement icon shown before the title. */
+  emoji         String   @default("📢")
+  /** When true, announcement lists who voted; when false, only counts on buttons. */
+  rsvpPublic    Boolean  @default(true)
+  /** When true, the first RSVP cannot be changed. */
+  rsvpLocked    Boolean  @default(false)
   createdBy     BigInt
   remindBefore  Int[]    @default([1440, 60])
   announcementMessageId Int?
@@ -61,13 +69,16 @@ model Event {
 }
 
 model Rsvp {
-  id        String     @id @default(cuid())
-  eventId   String
-  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    BigInt
-  status    RsvpStatus
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          String     @id @default(cuid())
+  eventId     String
+  event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId      BigInt
+  displayName String?
+  status      RsvpStatus
+  /** SEQUENCE for personal .ics updates on the phone calendar. */
+  icsSequence Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@unique([eventId, userId])
   @@index([eventId])

@@ -266,3 +266,116 @@ body {
   color: #e53935;
   padding: 8px 0;
 }
+
+.fieldset {
+  border: 1px solid color-mix(in srgb, var(--tg-hint) 35%, transparent);
+  border-radius: var(--radius);
+  padding: 10px 12px 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fieldset legend {
+  padding: 0 4px;
+  font-size: 0.9rem;
+  color: var(--tg-hint);
+}
+
+.map-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-canvas {
+  height: 220px;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tg-hint) 35%, transparent);
+  z-index: 0;
+}
+
+.map-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow: auto;
+  border-radius: 10px;
+  background: var(--tg-secondary);
+}
+
+.map-hits button {
+  display: block;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  background: transparent;
+  color: var(--tg-text);
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.map-hits button:hover,
+.map-hits button:focus-visible {
+  background: color-mix(in srgb, var(--tg-button) 18%, transparent);
+}
+
+.voter-list {
+  margin: 0 0 12px;
+  padding-inline-start: 1.1rem;
+}
+
+.voter-list li {
+  margin: 2px 0;
+}
+
+.map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tg-link);
+  text-decoration: none;
+  font-weight: 600;
+  margin: 0 0 12px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.emoji-btn {
+  border: 1px solid color-mix(in srgb, var(--tg-hint) 35%, transparent);
+  background: var(--tg-secondary);
+  border-radius: 10px;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.emoji-btn.active {
+  outline: 2px solid var(--tg-link);
+  background: color-mix(in srgb, var(--tg-button) 18%, transparent);
+}
+
+.ics-box {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--tg-hint) 30%, transparent);
+}
+
+.ics-box .hint {
+  margin-top: 6px;
+}

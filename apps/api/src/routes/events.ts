@@ -6,9 +6,19 @@ import { isTelegramAdmin } from "../telegram.js";
 import {
   announceEvent,
   cancelReminders,
+  displayNameFromUser,
+  refreshAnnouncement,
   scheduleReminders,
+  sendPersonalCalendarInvite,
 } from "../botActions.js";
-import type { EventDto } from "@tg-cal/shared";
+import {
+  EVENT_EMOJI_CHOICES,
+  parseLocationCoords,
+  type EventDto,
+  type RsvpStatus as SharedRsvpStatus,
+} from "@tg-cal/shared";
+
+const emojiSet = new Set<string>(EVENT_EMOJI_CHOICES);
 
 const createSchema = z.object({
   title: z.string().min(1).max(200),
@@ -17,6 +27,12 @@ const createSchema = z.object({
   endsAt: z.string().datetime().nullable().optional(),
   allDay: z.boolean().optional(),
   location: z.string().max(500).nullable().optional(),
+  locationLat: z.number().min(-90).max(90).nullable().optional(),
+  locationLng: z.number().min(-180).max(180).nullable().optional(),
+  emoji: z.string().min(1).max(8).optional(),
+  rsvpPublic: z.boolean().optional(),
+  rsvpLocked: z.boolean().optional(),
+  timezone: z.string().min(1).max(64).optional(),
   remindBefore: z.array(z.number().int().positive()).optional(),
 });
 
@@ -32,17 +48,32 @@ function toDto(
     endsAt: Date | null;
     allDay: boolean;
     location: string | null;
+    locationLat: number | null;
+    locationLng: number | null;
+    emoji: string;
+    rsvpPublic: boolean;
+    rsvpLocked: boolean;
     createdBy: bigint;
     remindBefore: number[];
-    rsvps?: { status: RsvpStatus; userId: bigint }[];
+    rsvps?: {
+      status: RsvpStatus;
+      userId: bigint;
+      displayName?: string | null;
+    }[];
   },
   userId?: number,
 ): EventDto {
   const counts = { going: 0, maybe: 0, not_going: 0 };
   let myRsvp: EventDto["myRsvp"] = null;
+  const rsvpVoters: Partial<Record<SharedRsvpStatus, string[]>> | undefined =
+    event.rsvpPublic ? { going: [], maybe: [], not_going: [] } : undefined;
   for (const r of event.rsvps ?? []) {
     counts[r.status] += 1;
     if (userId && r.userId === BigInt(userId)) myRsvp = r.status;
+    if (rsvpVoters) {
+      const name = r.displayName || `User ${r.userId.toString()}`;
+      rsvpVoters[r.status as SharedRsvpStatus]!.push(name);
+    }
   }
   return {
     id: event.id,
@@ -53,11 +84,62 @@ function toDto(
     endsAt: event.endsAt?.toISOString() ?? null,
     allDay: event.allDay,
     location: event.location,
+    locationLat: event.locationLat,
+    locationLng: event.locationLng,
+    emoji: event.emoji || "📢",
+    rsvpPublic: event.rsvpPublic,
+    rsvpLocked: event.rsvpLocked,
     createdBy: event.createdBy.toString(),
     remindBefore: event.remindBefore,
     rsvpCounts: counts,
+    rsvpVoters,
     myRsvp,
   };
+}
+
+function normalizeEmoji(value: string | undefined): string {
+  if (!value) return "📢";
+  return emojiSet.has(value) ? value : "📢";
+}
+
+function resolveCoords(data: {
+  location?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+}): { locationLat: number | null; locationLng: number | null } {
+  if (
+    data.locationLat != null &&
+    data.locationLng != null &&
+    Number.isFinite(data.locationLat) &&
+    Number.isFinite(data.locationLng)
+  ) {
+    return { locationLat: data.locationLat, locationLng: data.locationLng };
+  }
+  const parsed = parseLocationCoords(data.location);
+  if (parsed) return { locationLat: parsed.lat, locationLng: parsed.lng };
+  return { locationLat: null, locationLng: null };
+}
+
+async function syncChatTimezone(
+  chatId: string,
+  timezone: string | undefined,
+): Promise<string> {
+  if (!timezone) {
+    const chat = await prisma.chat.findUniqueOrThrow({ where: { id: chatId } });
+    return chat.timezone;
+  }
+  try {
+    // Validate IANA timezone
+    Intl.DateTimeFormat(undefined, { timeZone: timezone });
+  } catch {
+    const chat = await prisma.chat.findUniqueOrThrow({ where: { id: chatId } });
+    return chat.timezone;
+  }
+  const updated = await prisma.chat.update({
+    where: { id: chatId },
+    data: { timezone },
+  });
+  return updated.timezone;
 }
 
 export async function eventsRoutes(app: FastifyInstance) {
@@ -65,13 +147,28 @@ export async function eventsRoutes(app: FastifyInstance) {
 
   app.get("/chat", { preHandler: [resolveChatFromStartParam] }, async (req) => {
     const chat = req.chat!;
+    const q = req.query as { timezone?: string };
+    const timezone = q.timezone
+      ? await syncChatTimezone(chat.id, q.timezone)
+      : chat.timezone;
     return {
       id: chat.id,
       title: chat.title,
       type: chat.type,
-      timezone: chat.timezone,
+      timezone,
       permissionMode: chat.permissionMode,
     };
+  });
+
+  app.patch("/chat/timezone", { preHandler: [resolveChatFromStartParam] }, async (req, reply) => {
+    const body = z
+      .object({ timezone: z.string().min(1).max(64) })
+      .safeParse(req.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: "Invalid timezone" });
+    }
+    const timezone = await syncChatTimezone(req.chat!.id, body.data.timezone);
+    return { timezone };
   });
 
   app.get(
@@ -141,6 +238,8 @@ export async function eventsRoutes(app: FastifyInstance) {
       }
 
       const data = parsed.data;
+      const timezone = await syncChatTimezone(chat.id, data.timezone);
+      const coords = resolveCoords(data);
       const event = await prisma.event.create({
         data: {
           chatId: chat.id,
@@ -150,6 +249,11 @@ export async function eventsRoutes(app: FastifyInstance) {
           endsAt: data.endsAt ? new Date(data.endsAt) : null,
           allDay: data.allDay ?? false,
           location: data.location ?? null,
+          locationLat: coords.locationLat,
+          locationLng: coords.locationLng,
+          emoji: normalizeEmoji(data.emoji),
+          rsvpPublic: data.rsvpPublic ?? true,
+          rsvpLocked: data.rsvpLocked ?? false,
           createdBy: BigInt(userId),
           remindBefore: data.remindBefore ?? [1440, 60],
         },
@@ -162,7 +266,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         req.log.error(err, "Failed to schedule reminders");
       }
       try {
-        await announceEvent(chat.telegramChatId, event, chat.timezone);
+        await announceEvent(chat.telegramChatId, event, timezone);
       } catch (err) {
         req.log.error(err, "Failed to announce event");
       }
@@ -203,6 +307,22 @@ export async function eventsRoutes(app: FastifyInstance) {
       }
 
       const data = parsed.data;
+      if (data.timezone) {
+        await syncChatTimezone(chat.id, data.timezone);
+      }
+      let coords: { locationLat: number | null; locationLng: number | null } | null =
+        null;
+      if (data.locationLat !== undefined || data.locationLng !== undefined) {
+        coords =
+          data.locationLat != null && data.locationLng != null
+            ? {
+                locationLat: data.locationLat,
+                locationLng: data.locationLng,
+              }
+            : { locationLat: null, locationLng: null };
+      } else if (data.location !== undefined) {
+        coords = resolveCoords({ location: data.location });
+      }
       const event = await prisma.event.update({
         where: { id },
         data: {
@@ -217,6 +337,15 @@ export async function eventsRoutes(app: FastifyInstance) {
                 : null,
           allDay: data.allDay,
           location: data.location,
+          emoji: data.emoji !== undefined ? normalizeEmoji(data.emoji) : undefined,
+          rsvpPublic: data.rsvpPublic,
+          rsvpLocked: data.rsvpLocked,
+          ...(coords
+            ? {
+                locationLat: coords.locationLat,
+                locationLng: coords.locationLng,
+              }
+            : {}),
           remindBefore: data.remindBefore,
         },
         include: { rsvps: true },
@@ -282,17 +411,58 @@ export async function eventsRoutes(app: FastifyInstance) {
       if (!event) return reply.code(404).send({ error: "Not found" });
 
       const userId = req.tg!.user.id;
-      await prisma.rsvp.upsert({
+      const name = displayNameFromUser(req.tg!.user);
+      const nextStatus = body.data.status as RsvpStatus;
+
+      const existing = await prisma.rsvp.findUnique({
+        where: {
+          eventId_userId: { eventId: id, userId: BigInt(userId) },
+        },
+      });
+
+      if (existing && event.rsvpLocked && existing.status !== nextStatus) {
+        return reply.code(409).send({
+          error: "This event locks the first RSVP — you cannot change your vote.",
+        });
+      }
+
+      const nextSequence = (existing?.icsSequence ?? 0) + 1;
+      const rsvp = await prisma.rsvp.upsert({
         where: {
           eventId_userId: { eventId: id, userId: BigInt(userId) },
         },
         create: {
           eventId: id,
           userId: BigInt(userId),
-          status: body.data.status as RsvpStatus,
+          status: nextStatus,
+          displayName: name,
+          icsSequence: 1,
         },
-        update: { status: body.data.status as RsvpStatus },
+        update: {
+          status: nextStatus,
+          displayName: name,
+          icsSequence: nextSequence,
+        },
       });
+
+      try {
+        await refreshAnnouncement(id);
+      } catch (err) {
+        req.log.error(err, "Failed to refresh announcement after RSVP");
+      }
+
+      if (!existing || existing.status !== nextStatus) {
+        try {
+          await sendPersonalCalendarInvite({
+            userId,
+            event,
+            status: nextStatus,
+            sequence: rsvp.icsSequence,
+          });
+        } catch (err) {
+          req.log.error(err, "Failed to send personal calendar file");
+        }
+      }
 
       const updated = await prisma.event.findUnique({
         where: { id },

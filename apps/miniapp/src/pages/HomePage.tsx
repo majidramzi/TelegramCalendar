@@ -114,11 +114,12 @@ export function HomePage({ locale, chat }: Props) {
       )}
 
       {icsUrl && (
-        <p className="hint" style={{ marginTop: 20 }}>
+        <div className="ics-box">
           <a href={icsUrl} style={{ color: "var(--tg-link)" }}>
             {t(locale, "ics")}
           </a>
-        </p>
+          <p className="hint">{t(locale, "icsHint")}</p>
+        </div>
       )}
     </div>
   );
