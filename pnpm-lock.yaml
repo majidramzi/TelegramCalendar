@@ -64,8 +64,8 @@ importers:
         version: 5.11.1
     devDependencies:
       '@grammyjs/types':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^3.20.0
+        version: 3.28.0
       '@types/node':
         specifier: ^22.13.10
         version: 22.20.5
@@ -109,6 +109,28 @@ importers:
       vite:
         specifier: ^6.2.2
         version: 6.4.4(@types/node@22.20.5)(jiti@2.7.0)(tsx@4.23.15)
+
+  apps/server:
+    dependencies:
+      '@tg-cal/api':
+        specifier: workspace:*
+        version: link:../api
+      '@tg-cal/bot':
+        specifier: workspace:*
+        version: link:../bot
+      grammy:
+        specifier: ^1.35.0
+        version: 1.46.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
   packages/db:
     dependencies:
@@ -561,6 +583,9 @@ packages:
     engines: {node: ^12.20.0 || >=14.13.1}
     peerDependencies:
       grammy: ^1.20.1
+
+  '@grammyjs/types@3.28.0':
+    resolution: {integrity: sha512-4JvXCdxRZHCje0M4gHzLwtB4bLno3WD28xd8CNfk4POWIu73BFnSvGeW6OQ5gPem4eYTEwkD9yDaXssixl6tMQ==}
 
   '@grammyjs/types@5.0.0':
     resolution: {integrity: sha512-iq1Qrq1iPKkB8yAa0qSuIURMZOCuqTY5pWy5gHpCeL1oQ+GPadGhw/cDTVE8waJwuCzacUzuIjRv1sESvk7u7A==}
@@ -1746,6 +1771,8 @@ snapshots:
   '@grammyjs/conversations@2.1.1(grammy@1.46.0)':
     dependencies:
       grammy: 1.46.0
+
+  '@grammyjs/types@3.28.0': {}
 
   '@grammyjs/types@5.0.0': {}
 

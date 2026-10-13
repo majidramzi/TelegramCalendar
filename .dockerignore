@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.env
+.env.*
+!.env.example
+apps/miniapp/dist
+**/*.log
+.DS_Store
+.cursor
+agent-transcripts

@@ -7,13 +7,16 @@
     "dev": "pnpm -r --parallel --filter @tg-cal/bot --filter @tg-cal/api --filter @tg-cal/miniapp run dev",
     "dev:bot": "pnpm --filter @tg-cal/bot dev",
     "dev:api": "pnpm --filter @tg-cal/api dev",
+    "dev:server": "pnpm --filter @tg-cal/server dev",
     "dev:miniapp": "pnpm --filter @tg-cal/miniapp dev",
     "build": "pnpm -r run build",
+    "start": "pnpm --filter @tg-cal/server start",
     "db:generate": "pnpm --filter @tg-cal/db generate",
     "db:migrate": "pnpm --filter @tg-cal/db migrate",
     "db:push": "pnpm --filter @tg-cal/db push",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "deploy:fly": "fly deploy"
   },
   "engines": {
     "node": ">=20"
