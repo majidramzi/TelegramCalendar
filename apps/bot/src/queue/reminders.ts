@@ -36,7 +36,7 @@ export async function scheduleRemindersForEvent(event: Event): Promise<void> {
     if (fireAt.getTime() <= Date.now()) continue;
 
     const delay = fireAt.getTime() - Date.now();
-    const jobId = `${event.id}:${minutesBefore}`;
+    const jobId = `${event.id}-${minutesBefore}`;
 
     await prisma.reminderJob.upsert({
       where: {
@@ -155,7 +155,7 @@ export async function restorePendingReminders(): Promise<void> {
   for (const row of pending) {
     const delay = row.fireAt.getTime() - Date.now();
     if (delay <= 0) continue;
-    const jobId = row.bullJobId ?? `${row.eventId}:${row.minutesBefore}`;
+    const jobId = row.bullJobId ?? `${row.eventId}-${row.minutesBefore}`;
     const existing = await q.getJob(jobId);
     if (existing) continue;
     await q.add(

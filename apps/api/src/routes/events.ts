@@ -156,8 +156,16 @@ export async function eventsRoutes(app: FastifyInstance) {
         include: { rsvps: true },
       });
 
-      await scheduleReminders(event);
-      await announceEvent(chat.telegramChatId, event, chat.timezone);
+      try {
+        await scheduleReminders(event);
+      } catch (err) {
+        req.log.error(err, "Failed to schedule reminders");
+      }
+      try {
+        await announceEvent(chat.telegramChatId, event, chat.timezone);
+      } catch (err) {
+        req.log.error(err, "Failed to announce event");
+      }
 
       return { event: toDto(event, userId) };
     },
@@ -214,8 +222,12 @@ export async function eventsRoutes(app: FastifyInstance) {
         include: { rsvps: true },
       });
 
-      await cancelReminders(event.id);
-      await scheduleReminders(event);
+      try {
+        await cancelReminders(event.id);
+        await scheduleReminders(event);
+      } catch (err) {
+        req.log.error(err, "Failed to reschedule reminders");
+      }
 
       return { event: toDto(event, userId) };
     },

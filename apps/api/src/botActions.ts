@@ -22,7 +22,7 @@ export async function scheduleReminders(event: Event): Promise<void> {
   for (const minutesBefore of minutesList) {
     const fireAt = new Date(event.startsAt.getTime() - minutesBefore * 60_000);
     if (fireAt.getTime() <= Date.now()) continue;
-    const jobId = `${event.id}:${minutesBefore}`;
+    const jobId = `${event.id}-${minutesBefore}`;
     await prisma.reminderJob.upsert({
       where: { eventId_minutesBefore: { eventId: event.id, minutesBefore } },
       create: {
