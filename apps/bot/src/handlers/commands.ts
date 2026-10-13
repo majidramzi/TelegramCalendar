@@ -217,15 +217,24 @@ export async function handleCalendar(ctx: BotContext): Promise<void> {
     return;
   }
 
-  if (!(await canManageEvents(ctx.api, chat, userId))) {
-    await ctx.reply("Open calendar:", {
+  try {
+    if (!(await canManageEvents(ctx.api, chat, userId))) {
+      await ctx.reply("Open calendar:", {
+        reply_markup: calendarKeyboard(chat.id),
+      });
+      return;
+    }
+
+    await postAndPinCalendarMessage(ctx.api, chatId, chat);
+    await ctx.reply("Calendar message posted.", {
       reply_markup: calendarKeyboard(chat.id),
     });
-    return;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("kicked") || msg.includes("Forbidden")) {
+      console.error("Bot cannot post in this chat (kicked/banned).", err);
+      return;
+    }
+    throw err;
   }
-
-  await postAndPinCalendarMessage(ctx.api, chatId, chat);
-  await ctx.reply("Calendar message posted.", {
-    reply_markup: calendarKeyboard(chat.id),
-  });
 }
