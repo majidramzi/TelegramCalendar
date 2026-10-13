@@ -3,15 +3,11 @@ import type { StartAppPayload } from "./types.js";
 
 const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
-function b64urlEncode(buf: Buffer | string): string {
-  const b = typeof buf === "string" ? Buffer.from(buf, "utf8") : buf;
-  return b.toString("base64url");
-}
-
-function b64urlDecode(str: string): Buffer {
-  return Buffer.from(str, "base64url");
-}
-
+/**
+ * Telegram Direct Link startapp may only contain A-Z a-z 0-9 _ -
+ * so we use hex body + "_" + hex signature (no dots).
+ * https://core.telegram.org/bots/webapps#direct-link-mini-apps
+ */
 export function createStartAppToken(
   chatId: string,
   secret: string,
@@ -21,24 +17,26 @@ export function createStartAppToken(
     chatId,
     exp: Math.floor(Date.now() / 1000) + ttlSeconds,
   };
-  const body = b64urlEncode(JSON.stringify(payload));
-  const sig = createHmac("sha256", secret).update(body).digest();
-  return `${body}.${b64urlEncode(sig)}`;
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("hex");
+  const sig = createHmac("sha256", secret).update(body).digest("hex");
+  return `${body}_${sig}`;
 }
 
 export function verifyStartAppToken(
   token: string,
   secret: string,
 ): StartAppPayload | null {
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-  const [body, sigB64] = parts;
-  if (!body || !sigB64) return null;
+  if (!/^[0-9a-f]+_[0-9a-f]+$/i.test(token)) return null;
+  const idx = token.lastIndexOf("_");
+  if (idx <= 0) return null;
+  const body = token.slice(0, idx);
+  const sigHex = token.slice(idx + 1);
+  if (!body || !sigHex) return null;
 
   const expected = createHmac("sha256", secret).update(body).digest();
   let provided: Buffer;
   try {
-    provided = b64urlDecode(sigB64);
+    provided = Buffer.from(sigHex, "hex");
   } catch {
     return null;
   }
@@ -47,7 +45,9 @@ export function verifyStartAppToken(
   }
 
   try {
-    const payload = JSON.parse(b64urlDecode(body).toString("utf8")) as StartAppPayload;
+    const payload = JSON.parse(
+      Buffer.from(body, "hex").toString("utf8"),
+    ) as StartAppPayload;
     if (!payload.chatId || typeof payload.exp !== "number") return null;
     if (payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
@@ -62,7 +62,8 @@ export function buildDirectLink(
   startAppToken: string,
 ): string {
   const user = botUsername.replace(/^@/, "");
-  return `https://t.me/${user}/${appShortName}?startapp=${encodeURIComponent(startAppToken)}`;
+  // startapp must stay unescaped to [A-Za-z0-9_-] only; hex token is already safe
+  return `https://t.me/${user}/${appShortName}?startapp=${startAppToken}`;
 }
 
 export function generateIcsSecret(): string {

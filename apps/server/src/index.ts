@@ -55,6 +55,12 @@ async function main() {
   });
 
   const miniappDist = resolveMiniappDist();
+  // Help Telegram WebView embed the Mini App
+  app.addHook("onSend", async (_req, reply) => {
+    reply.header("Content-Security-Policy", "frame-ancestors https://web.telegram.org https://telegram.org 'self'");
+    reply.removeHeader("X-Frame-Options");
+  });
+
   if (miniappDist) {
     await app.register(fastifyStatic, {
       root: miniappDist,
