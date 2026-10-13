@@ -118,29 +118,41 @@ pnpm db:push
 
 ## 5) Cloudflare Pages (Mini App)
 
-1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** → Connect GitHub repo.  
-2. Build settings:
+1. Cloudflare Dashboard → **Workers & Pages** → your Pages project → **Settings** → **Builds & deployments**.  
+2. Build settings (important: this must be **Pages**, not Workers):
 
 | Setting | Value |
 |--------|--------|
 | Framework preset | None |
 | Build command | `corepack enable && pnpm install && pnpm --filter @tg-cal/miniapp build` |
+| **Deploy command** | **leave EMPTY** (do not use `npx wrangler deploy`) |
 | Build output directory | `apps/miniapp/dist` |
 | Root directory | `/` (repo root) |
+
+If Deploy command is set to `npx wrangler deploy`, the build can succeed and then fail on deploy. Clear it and **Retry deployment**.
 
 3. Environment variable (Production):
 
 | Name | Value |
 |------|--------|
-| `VITE_API_URL` | `https://telegram-calendar.fly.dev` |
+| `VITE_API_URL` | `https://telegram-calendar-2026-10-13.fly.dev` |
 
 4. Deploy. Copy the HTTPS URL, e.g. `https://telegram-calendar.pages.dev`.
 
 5. Update Fly secret:
 
 ```bash
-fly secrets set PUBLIC_MINIAPP_URL="https://telegram-calendar.pages.dev"
+fly secrets set PUBLIC_MINIAPP_URL="https://YOUR_PROJECT.pages.dev"
 ```
+
+### Upstash Redis URL (common mistake)
+
+BullMQ needs a **Redis** URL, not the REST/HTTP URL.
+
+- Wrong: `https://xxxxx.upstash.io`
+- Right: `rediss://default:PASSWORD@xxxxx.upstash.io:6379`
+
+In Upstash console → your database → **Connect** → copy **Redis** / **Node.js (ioredis)** URL.
 
 ---
 

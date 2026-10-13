@@ -1,8 +1,8 @@
 # Fly.io app for bot + API + reminder worker
-# Create with: fly apps create telegram-calendar
+# Create with: fly apps create telegram-calendar-2026-10-13
 # Deploy with: fly deploy
 
-app = "telegram-calendar"
+app = "telegram-calendar-2026-10-13"
 primary_region = "fra"
 
 [build]
