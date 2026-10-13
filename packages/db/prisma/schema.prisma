@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ChatType {
+  group
+  supergroup
+  channel
+}
+
+enum PermissionMode {
+  admins_only
+  all_members
+}
+
+enum RsvpStatus {
+  going
+  maybe
+  not_going
+}
+
+model Chat {
+  id              String         @id @default(cuid())
+  telegramChatId  BigInt         @unique
+  type            ChatType
+  title           String
+  timezone        String         @default("UTC")
+  permissionMode  PermissionMode @default(admins_only)
+  icsSecret       String         @unique
+  calendarMessageId Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  events          Event[]
+  adminCache      ChatAdminCache[]
+}
+
+model Event {
+  id            String   @id @default(cuid())
+  chatId        String
+  chat          Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  startsAt      DateTime
+  endsAt        DateTime?
+  allDay        Boolean  @default(false)
+  location      String?
+  createdBy     BigInt
+  remindBefore  Int[]    @default([1440, 60])
+  announcementMessageId Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  rsvps         Rsvp[]
+  reminderJobs  ReminderJob[]
+
+  @@index([chatId, startsAt])
+}
+
+model Rsvp {
+  id        String     @id @default(cuid())
+  eventId   String
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    BigInt
+  status    RsvpStatus
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+}
+
+model ChatAdminCache {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  userId    BigInt
+  role      String
+  checkedAt DateTime @default(now())
+
+  @@unique([chatId, userId])
+}
+
+model ReminderJob {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  minutesBefore Int
+  bullJobId String?
+  fireAt    DateTime
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, minutesBefore])
+  @@index([fireAt])
+}

@@ -1,0 +1,21 @@
+{
+  "name": "telegram-calendar",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "postinstall": "pnpm --filter @tg-cal/shared build && pnpm --filter @tg-cal/db generate && pnpm --filter @tg-cal/db build",
+    "dev": "pnpm -r --parallel --filter @tg-cal/bot --filter @tg-cal/api --filter @tg-cal/miniapp run dev",
+    "dev:bot": "pnpm --filter @tg-cal/bot dev",
+    "dev:api": "pnpm --filter @tg-cal/api dev",
+    "dev:miniapp": "pnpm --filter @tg-cal/miniapp dev",
+    "build": "pnpm -r run build",
+    "db:generate": "pnpm --filter @tg-cal/db generate",
+    "db:migrate": "pnpm --filter @tg-cal/db migrate",
+    "db:push": "pnpm --filter @tg-cal/db push",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,268 @@
+:root {
+  --tg-bg: #ffffff;
+  --tg-text: #111111;
+  --tg-hint: #8a8a8a;
+  --tg-link: #2481cc;
+  --tg-button: #2481cc;
+  --tg-button-text: #ffffff;
+  --tg-secondary: #f0f0f0;
+  --font: "Segoe UI", "Tahoma", "Vazirmatn", system-ui, sans-serif;
+  --radius: 12px;
+}
+
+[data-color-scheme="dark"] {
+  --tg-bg: #18222d;
+  --tg-text: #ffffff;
+  --tg-hint: #708499;
+  --tg-link: #6ab3f3;
+  --tg-button: #2ea6ff;
+  --tg-button-text: #ffffff;
+  --tg-secondary: #232e3c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--tg-bg);
+  color: var(--tg-text);
+}
+
+[dir="rtl"] body {
+  font-family: "Vazirmatn", "Tahoma", "Segoe UI", sans-serif;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 14px 28px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.header h1 {
+  font-size: 1.25rem;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  background: var(--tg-secondary);
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--tg-hint);
+  padding: 8px 10px;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-weight: 600;
+}
+
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+
+.btn.ghost {
+  background: var(--tg-secondary);
+  color: var(--tg-text);
+}
+
+.btn.danger {
+  background: #e53935;
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-row {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--tg-secondary);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.event-row .title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.event-row .meta {
+  color: var(--tg-hint);
+  font-size: 0.85rem;
+}
+
+.hint {
+  color: var(--tg-hint);
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.month-grid .dow {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--tg-hint);
+  padding: 4px 0;
+}
+
+.day {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tg-text);
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+}
+
+.day.muted {
+  color: var(--tg-hint);
+  opacity: 0.5;
+}
+
+.day.selected {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+
+.day.has-event::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--tg-link);
+}
+
+.day.selected.has-event::after {
+  background: var(--tg-button-text);
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.form input,
+.form textarea {
+  border: 1px solid color-mix(in srgb, var(--tg-hint) 40%, transparent);
+  background: var(--tg-secondary);
+  color: var(--tg-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.form textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.rsvp-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rsvp-row button.active {
+  outline: 2px solid var(--tg-link);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.detail h2 {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+}
+
+.detail .meta {
+  color: var(--tg-hint);
+  margin-bottom: 12px;
+}
+
+.error {
+  color: #e53935;
+  padding: 8px 0;
+}
