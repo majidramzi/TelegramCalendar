@@ -143,25 +143,42 @@ export function startReminderWorker(): Worker {
 
 /** Re-queue pending reminders after restart */
 export async function restorePendingReminders(): Promise<void> {
-  const pending = await prisma.reminderJob.findMany({
-    where: {
-      sentAt: null,
-      fireAt: { gt: new Date() },
-    },
-    include: { event: true },
-  });
+  try {
+    const pending = await prisma.reminderJob.findMany({
+      where: {
+        sentAt: null,
+        fireAt: { gt: new Date() },
+      },
+      include: { event: true },
+    });
 
-  const q = getReminderQueue();
-  for (const row of pending) {
-    const delay = row.fireAt.getTime() - Date.now();
-    if (delay <= 0) continue;
-    const jobId = row.bullJobId ?? `${row.eventId}-${row.minutesBefore}`;
-    const existing = await q.getJob(jobId);
-    if (existing) continue;
-    await q.add(
-      "remind",
-      { eventId: row.eventId, minutesBefore: row.minutesBefore },
-      { jobId, delay, removeOnComplete: true, removeOnFail: 100 },
-    );
+    const q = getReminderQueue();
+    for (const row of pending) {
+      const delay = row.fireAt.getTime() - Date.now();
+      if (delay <= 0) continue;
+      // BullMQ custom ids cannot contain ":" (legacy rows may still have it)
+      const jobId = (
+        row.bullJobId ?? `${row.eventId}-${row.minutesBefore}`
+      ).replaceAll(":", "-");
+      if (row.bullJobId && row.bullJobId !== jobId) {
+        await prisma.reminderJob.update({
+          where: { id: row.id },
+          data: { bullJobId: jobId },
+        });
+      }
+      try {
+        const existing = await q.getJob(jobId);
+        if (existing) continue;
+        await q.add(
+          "remind",
+          { eventId: row.eventId, minutesBefore: row.minutesBefore },
+          { jobId, delay, removeOnComplete: true, removeOnFail: 100 },
+        );
+      } catch (err) {
+        console.error(`Failed to restore reminder ${jobId}`, err);
+      }
+    }
+  } catch (err) {
+    console.error("restorePendingReminders failed", err);
   }
 }

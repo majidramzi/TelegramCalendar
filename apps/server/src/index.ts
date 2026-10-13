@@ -43,8 +43,13 @@ async function main() {
 
   const bot = createBot();
   const app = await buildApp();
-  const worker = startReminderWorker();
-  await restorePendingReminders();
+  let worker: ReturnType<typeof startReminderWorker> | null = null;
+  try {
+    worker = startReminderWorker();
+    await restorePendingReminders();
+  } catch (err) {
+    console.error("Reminder worker failed to start; continuing without it", err);
+  }
 
   const handleUpdate = webhookCallback(bot, "fastify", {
     secretToken: webhookSecret || undefined,
@@ -100,7 +105,7 @@ async function main() {
     console.log("Shutting down…");
     // Keep Telegram webhook registered so updates resume when the machine wakes.
     await app.close();
-    await worker.close();
+    await worker?.close();
     process.exit(0);
   };
   process.once("SIGINT", shutdown);
