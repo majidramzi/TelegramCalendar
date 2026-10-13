@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 
 FROM node:20-bookworm-slim AS base
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
@@ -12,7 +15,8 @@ COPY apps/server/package.json apps/server/
 COPY apps/miniapp/package.json apps/miniapp/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
-RUN pnpm install --frozen-lockfile
+# Source is not copied yet; skip lifecycle scripts (postinstall needs tsconfig).
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM deps AS build
 COPY . .
