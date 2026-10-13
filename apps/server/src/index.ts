@@ -92,11 +92,7 @@ async function main() {
 
   const shutdown = async () => {
     console.log("Shutting down…");
-    try {
-      await bot.api.deleteWebhook();
-    } catch {
-      // ignore
-    }
+    // Keep Telegram webhook registered so updates resume when the machine wakes.
     await app.close();
     await worker.close();
     process.exit(0);
