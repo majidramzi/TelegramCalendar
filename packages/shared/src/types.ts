@@ -1,3 +1,7 @@
+import type { RsvpOption } from "./rsvpOptions.js";
+
+export type { RsvpOption, RsvpOptionKind } from "./rsvpOptions.js";
+
 export type PermissionMode = "admins_only" | "all_members";
 
 export type ChatType = "group" | "supergroup" | "channel";
@@ -42,10 +46,23 @@ export interface EventDto {
   emoji: string;
   rsvpPublic: boolean;
   rsvpLocked: boolean;
+  rsvpOptions: RsvpOption[];
+  /** Minutes before start when RSVP closes (0 = until start). */
+  rsvpCloseBeforeMinutes: number;
+  /** True when an image is stored for this event. */
+  hasPhoto: boolean;
+  /** Public URL to fetch the event image (null if none). */
+  photoUrl: string | null;
   createdBy: string;
   remindBefore: number[];
-  rsvpCounts?: Record<RsvpStatus, number>;
-  /** Present only when rsvpPublic is true. */
-  rsvpVoters?: Partial<Record<RsvpStatus, string[]>>;
+  /** Counts keyed by option id. */
+  rsvpCounts?: Record<string, number>;
+  /** Present only when rsvpPublic is true; names keyed by option id. */
+  rsvpVoters?: Record<string, string[]>;
   myRsvp?: RsvpStatus | null;
+  myOptionId?: string | null;
+  /** True when the current user may edit/delete (creator or chat admin). */
+  canManage?: boolean;
+  /** False when event started or RSVP deadline passed. */
+  rsvpOpen?: boolean;
 }

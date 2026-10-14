@@ -1,7 +1,7 @@
 import type { BotContext } from "../context.js";
 import {
   upsertChatFromTelegram,
-  postAndPinCalendarMessage,
+  postCalendarMessage,
 } from "../services/chat.js";
 
 const GROUP_TYPES = new Set(["group", "supergroup", "channel"]);
@@ -28,12 +28,12 @@ export async function handleMyChatMember(ctx: BotContext): Promise<void> {
   if (!joined && !promotedToAdmin) return;
 
   if (chat.type === "channel" && newStatus !== "administrator") {
-    // Channels: bot must be admin to post/pin
+    // Channels: bot must be admin to post
     const fromId = update.from.id;
     try {
       await ctx.api.sendMessage(
         fromId,
-        `I was added to channel "${"title" in chat && chat.title ? chat.title : String(chat.id)}" but I need admin rights to post and pin the calendar message. Please promote me to admin, then I'll set up the calendar.`,
+        `I was added to channel "${"title" in chat && chat.title ? chat.title : String(chat.id)}" but I need admin rights to post the calendar message. Please promote me to admin, then I'll set up the calendar.`,
       );
     } catch {
       // can't DM user
@@ -44,18 +44,14 @@ export async function handleMyChatMember(ctx: BotContext): Promise<void> {
   }
 
   const dbChat = await upsertChatFromTelegram(chat);
-  const messageId = await postAndPinCalendarMessage(
-    ctx.api,
-    chat.id,
-    dbChat,
-  );
+  const messageId = await postCalendarMessage(ctx.api, chat.id, dbChat);
 
   if (!messageId && chat.type === "channel") {
     const fromId = update.from.id;
     try {
       await ctx.api.sendMessage(
         fromId,
-        `Registered channel "${dbChat.title}" but failed to post the calendar message. Ensure I can post and pin messages.`,
+        `Registered channel "${dbChat.title}" but failed to post the calendar message. Ensure I can post messages.`,
       );
     } catch {
       // ignore

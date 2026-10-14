@@ -1,4 +1,10 @@
 import { prisma, RsvpStatus } from "@tg-cal/db";
+import {
+  icsStatusFromOption,
+  isRsvpOpen,
+  normalizeRsvpCloseBefore,
+  normalizeRsvpOptions,
+} from "@tg-cal/shared";
 import type { BotContext } from "../context.js";
 import { upsertRsvp } from "../services/events.js";
 import {
@@ -6,7 +12,7 @@ import {
   sendPersonalCalendarInvite,
 } from "../services/announce.js";
 
-const STATUS_MAP: Record<string, RsvpStatus> = {
+const LEGACY_STATUS: Record<string, RsvpStatus> = {
   going: RsvpStatus.going,
   maybe: RsvpStatus.maybe,
   not_going: RsvpStatus.not_going,
@@ -28,17 +34,12 @@ export async function handleRsvpCallback(ctx: BotContext): Promise<void> {
 
   const parts = data.split(":");
   if (parts.length < 3) {
-    await ctx.answerCallbackQuery({ text: "Invalid RSVP" });
+    await ctx.answerCallbackQuery({ text: "Invalid option" });
     return;
   }
 
   const eventId = parts[1]!;
-  const statusKey = parts.slice(2).join(":");
-  const status = STATUS_MAP[statusKey];
-  if (!status) {
-    await ctx.answerCallbackQuery({ text: "Invalid status" });
-    return;
-  }
+  const optionKey = parts.slice(2).join(":");
 
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) {
@@ -46,21 +47,63 @@ export async function handleRsvpCallback(ctx: BotContext): Promise<void> {
     return;
   }
 
+  const closeBefore = normalizeRsvpCloseBefore(event.rsvpCloseBeforeMinutes);
+  if (!isRsvpOpen(event.startsAt, closeBefore)) {
+    const pastStart = Date.now() >= event.startsAt.getTime();
+    await ctx.answerCallbackQuery({
+      text: pastStart
+        ? "This event has already started — voting is closed."
+        : "Voting deadline has passed for this event.",
+      show_alert: true,
+    });
+    return;
+  }
+
+  const options = normalizeRsvpOptions(event.rsvpOptions);
+  let option = options.find((o) => o.id === optionKey);
+  if (!option && LEGACY_STATUS[optionKey]) {
+    // Legacy callbacks from older announcements
+    const legacy = LEGACY_STATUS[optionKey]!;
+    option =
+      legacy === RsvpStatus.going
+        ? options.find((o) => o.kind === "yes")
+        : legacy === RsvpStatus.not_going
+          ? options.find((o) => o.kind === "no")
+          : options.find((o) => o.kind === "extra");
+  }
+  if (!option) {
+    await ctx.answerCallbackQuery({ text: "Invalid option" });
+    return;
+  }
+
+  const status = icsStatusFromOption(option) as RsvpStatus;
   const existing = await prisma.rsvp.findUnique({
     where: {
       eventId_userId: { eventId, userId: BigInt(userId) },
     },
   });
 
-  if (existing && event.rsvpLocked && existing.status !== status) {
-    await ctx.answerCallbackQuery({
-      text: "This event locks the first RSVP — you cannot change your vote.",
-      show_alert: true,
-    });
-    return;
+  if (
+    existing &&
+    event.rsvpLocked &&
+    (existing.optionId ?? existing.status) !== option.id &&
+    existing.optionId !== option.id &&
+    existing.status !== status
+  ) {
+    // Locked: block if already voted for a different option
+    const same =
+      existing.optionId === option.id ||
+      (!existing.optionId && existing.status === status);
+    if (!same) {
+      await ctx.answerCallbackQuery({
+        text: "This event locks the first vote — you cannot change it.",
+        show_alert: true,
+      });
+      return;
+    }
   }
 
-  if (existing && existing.status === status) {
+  if (existing?.optionId === option.id) {
     await ctx.answerCallbackQuery({ text: "Already recorded" });
     return;
   }
@@ -70,6 +113,7 @@ export async function handleRsvpCallback(ctx: BotContext): Promise<void> {
     BigInt(userId),
     status,
     displayNameFromCtx(ctx),
+    option.id,
   );
   await refreshAnnouncementMessage(ctx.api, eventId);
   await sendPersonalCalendarInvite(
@@ -80,13 +124,7 @@ export async function handleRsvpCallback(ctx: BotContext): Promise<void> {
     rsvp.icsSequence,
   );
 
-  const labels = {
-    going: "Going",
-    maybe: "Maybe",
-    not_going: "Not going",
-  } as const;
-
   await ctx.answerCallbackQuery({
-    text: `RSVP: ${labels[status]} — calendar file sent in private chat`,
+    text: `${option.emoji} ${option.label} — calendar file sent in private chat`,
   });
 }

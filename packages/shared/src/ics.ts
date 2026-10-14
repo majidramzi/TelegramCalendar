@@ -111,7 +111,7 @@ export function buildPersonalIcs(options: {
     `DESCRIPTION:${icsEscape(summary)}`,
     "END:VALARM",
   );
-  lines.push(`COMMENT:RSVP ${partStat}`);
+  lines.push(`COMMENT:Attendance ${partStat}`);
   lines.push("END:VEVENT", "END:VCALENDAR");
   return lines.join("\r\n");
 }

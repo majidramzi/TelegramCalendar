@@ -7,7 +7,7 @@ import {
   getChatByTelegramId,
   isUserAdmin,
   calendarKeyboard,
-  postAndPinCalendarMessage,
+  postCalendarMessage,
   upsertChatFromTelegram,
 } from "../services/chat.js";
 import {
@@ -28,7 +28,7 @@ export async function handleStart(ctx: BotContext): Promise<void> {
       "📅 *Telegram Group Calendar*",
       "",
       "Add me to a group or channel (as admin for channels).",
-      "I'll pin a Calendar button for everyone.",
+      "I'll post a Calendar button for everyone.",
       "",
       "*Commands (in the group):*",
       "/addevent — create an event",
@@ -225,7 +225,7 @@ export async function handleCalendar(ctx: BotContext): Promise<void> {
       return;
     }
 
-    await postAndPinCalendarMessage(ctx.api, chatId, chat);
+    await postCalendarMessage(ctx.api, chatId, chat);
     await ctx.reply("Calendar message posted.", {
       reply_markup: calendarKeyboard(chat.id),
     });

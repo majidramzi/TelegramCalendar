@@ -27,7 +27,8 @@ export function getReminderQueue(): Queue {
 
 export async function scheduleRemindersForEvent(event: Event): Promise<void> {
   const q = getReminderQueue();
-  const minutesList = event.remindBefore?.length
+  // Empty array means "no reminders"; only fall back when field is missing/null.
+  const minutesList = Array.isArray(event.remindBefore)
     ? event.remindBefore
     : [1440, 60];
 

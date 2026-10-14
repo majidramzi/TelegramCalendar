@@ -1,3 +1,8 @@
+import {
+  normalizeRsvpOptions,
+  type RsvpOption,
+} from "./rsvpOptions.js";
+
 export type AnnouncementRsvpStatus = "going" | "maybe" | "not_going";
 
 export interface AnnouncementEvent {
@@ -12,13 +17,16 @@ export interface AnnouncementEvent {
   rsvpPublic?: boolean;
   emoji?: string | null;
   rsvpLocked?: boolean;
+  rsvpOptions?: unknown;
+  rsvpCloseBeforeMinutes?: number;
 }
 
 export interface AnnouncementVoter {
-  status: AnnouncementRsvpStatus;
+  optionId: string;
   displayName: string;
+  /** @deprecated legacy */
+  status?: AnnouncementRsvpStatus;
 }
-
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -62,26 +70,22 @@ export function buildGeoUri(
   return `geo:${lat},${lng}?q=${lat},${lng}(${name})`;
 }
 
-const RSVP_SECTIONS: {
-  status: AnnouncementRsvpStatus;
-  title: string;
-}[] = [
-  { status: "going", title: "✅ Going" },
-  { status: "maybe", title: "🤔 Maybe" },
-  { status: "not_going", title: "❌ No" },
-];
-
 function formatPublicVoters(
+  options: RsvpOption[],
   voters: AnnouncementVoter[],
   maxPerStatus = 25,
 ): string[] {
-  const lines: string[] = ["", "<b>👥 RSVPs</b>"];
-  for (const section of RSVP_SECTIONS) {
+  const lines: string[] = ["", "<b>👥 Attendance</b>"];
+  const sorted = [...options].sort((a, b) => a.order - b.order);
+  for (const opt of sorted) {
     const names = voters
-      .filter((v) => v.status === section.status)
+      .filter((v) => v.optionId === opt.id)
       .map((v) => v.displayName.trim())
       .filter(Boolean);
-    lines.push("", `<b>${section.title} (${names.length})</b>`);
+    lines.push(
+      "",
+      `<b>${escapeHtml(opt.emoji)} ${escapeHtml(opt.label)} (${names.length})</b>`,
+    );
     if (names.length === 0) {
       lines.push("<i>Nobody yet</i>");
       continue;
@@ -122,53 +126,77 @@ function locationBlock(event: AnnouncementEvent): string[] {
   return [];
 }
 
+/** Telegram photo caption limit (HTML). */
+export const TELEGRAM_CAPTION_MAX = 1024;
+/** Telegram text message limit (HTML). */
+export const TELEGRAM_MESSAGE_MAX = 4096;
+
+function fitAnnouncementLength(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  const ellipsis = "\n<i>…</i>";
+  const keep = Math.max(0, maxLength - ellipsis.length);
+  return `${text.slice(0, keep)}${ellipsis}`;
+}
+
 /** Build the group announcement body (HTML parse mode). */
 export function formatAnnouncement(
   event: AnnouncementEvent,
   timezone = "UTC",
   options?: {
     voters?: AnnouncementVoter[];
+    /** Default 4096; use 1024 for photo captions. */
+    maxLength?: number;
   },
 ): string {
+  const maxLength = options?.maxLength ?? TELEGRAM_MESSAGE_MAX;
   const icon = (event.emoji || "📢").trim() || "📢";
-  const lines = [
-    `${icon} <b>New event</b>`,
-    "",
-    `<b>${escapeHtml(event.title)}</b>`,
-    "",
-    `<b>🗓 Starts</b>`,
-    escapeHtml(formatWhen(event.startsAt, timezone, event.allDay)),
-  ];
 
-  if (event.endsAt) {
+  function build(includeVoters: boolean): string {
+    const lines = [`${icon} <b>${escapeHtml(event.title)}</b>`];
+
+    if (event.description?.trim()) {
+      lines.push(escapeHtml(event.description.trim()));
+    }
+
     lines.push(
       "",
-      "<b>🏁 Ends</b>",
-      escapeHtml(formatWhen(event.endsAt, timezone, event.allDay)),
+      `<b>🗓 Starts</b>`,
+      escapeHtml(formatWhen(event.startsAt, timezone, event.allDay)),
+    );
+
+    if (event.endsAt) {
+      lines.push(
+        "",
+        "<b>🏁 Ends</b>",
+        escapeHtml(formatWhen(event.endsAt, timezone, event.allDay)),
+      );
+    }
+
+    lines.push(...locationBlock(event));
+
+    if (event.rsvpLocked) {
+    lines.push("", "<i>First vote is final — votes cannot be changed.</i>");
+  }
+
+  if (includeVoters && event.rsvpPublic && options?.voters) {
+    const rsvpOpts = normalizeRsvpOptions(event.rsvpOptions);
+    lines.push(...formatPublicVoters(rsvpOpts, options.voters));
+  } else if (event.rsvpPublic === false) {
+    lines.push(
+      "",
+      "<i>Voter names are private — only counts are shown.</i>",
     );
   }
 
-  lines.push(...locationBlock(event));
-
-  if (event.description?.trim()) {
-    lines.push("", "<b>📝 Details</b>", escapeHtml(event.description.trim()));
+    return lines.join("\n");
   }
 
-  if (event.rsvpLocked) {
-    lines.push("", "<i>First RSVP is final — votes cannot be changed.</i>");
+  let text = build(true);
+  if (text.length > maxLength && options?.voters?.length) {
+    // Prefer dropping long voter lists over cutting mid-message.
+    text = build(false);
   }
-
-  if (event.rsvpPublic && options?.voters) {
-    lines.push(...formatPublicVoters(options.voters));
-  } else if (event.rsvpPublic === false) {
-    lines.push("", "<i>RSVP names are private — only counts are shown.</i>");
-  }
-
-  let text = lines.join("\n");
-  if (text.length > 4000) {
-    text = `${text.slice(0, 3990)}\n<i>…</i>`;
-  }
-  return text;
+  return fitAnnouncementLength(text, maxLength);
 }
 
 /** Extract lat/lng from "lat, lng" text or common Google/Apple Maps URLs. */

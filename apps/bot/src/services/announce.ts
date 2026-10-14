@@ -2,34 +2,57 @@ import { InlineKeyboard, InputFile } from "grammy";
 import type { Api } from "grammy";
 import { prisma, type Chat, type Event, type RsvpStatus } from "@tg-cal/db";
 import {
+  TELEGRAM_CAPTION_MAX,
   buildPersonalIcs,
+  buildRsvpKeyboardRows,
+  countsByOptionId,
   formatAnnouncement,
+  normalizeRsvpOptions,
+  photoExtension,
+  resolveVoteOptionId,
   type AnnouncementVoter,
   type PersonalIcsStatus,
 } from "@tg-cal/shared";
-import { rsvpCounts } from "./events.js";
 
-export function rsvpKeyboard(eventId: string, counts?: {
-  going: number;
-  maybe: number;
-  not_going: number;
-}): InlineKeyboard {
-  const c = counts ?? { going: 0, maybe: 0, not_going: 0 };
-  return new InlineKeyboard()
-    .text(`✅ Going (${c.going})`, `rsvp:${eventId}:going`)
-    .text(`🤔 Maybe (${c.maybe})`, `rsvp:${eventId}:maybe`)
-    .row()
-    .text(`❌ No (${c.not_going})`, `rsvp:${eventId}:not_going`);
+export function rsvpKeyboard(
+  event: Event,
+  counts?: Record<string, number>,
+): InlineKeyboard {
+  const options = normalizeRsvpOptions(event.rsvpOptions);
+  const c = counts ?? countsByOptionId(options, []);
+  const rows = buildRsvpKeyboardRows(event.id, options, c);
+  const kb = new InlineKeyboard();
+  rows.forEach((row, rowIndex) => {
+    if (rowIndex > 0) kb.row();
+    for (const btn of row) {
+      kb.text(btn.text, btn.callback_data);
+    }
+  });
+  return kb;
 }
 
 export { formatAnnouncement };
 
-async function loadVoters(eventId: string): Promise<AnnouncementVoter[]> {
+async function loadVoters(
+  eventId: string,
+  event: Event,
+): Promise<{ voters: AnnouncementVoter[]; counts: Record<string, number> }> {
+  const options = normalizeRsvpOptions(event.rsvpOptions);
   const rows = await prisma.rsvp.findMany({ where: { eventId } });
-  return rows.map((r) => ({
-    status: r.status as AnnouncementVoter["status"],
-    displayName: r.displayName || `User ${r.userId.toString()}`,
-  }));
+  const counts = countsByOptionId(
+    options,
+    rows.map((r) => ({ optionId: r.optionId, status: r.status })),
+  );
+  const voters: AnnouncementVoter[] = [];
+  for (const r of rows) {
+    const optionId = resolveVoteOptionId(options, r.optionId, r.status);
+    if (!optionId) continue;
+    voters.push({
+      optionId,
+      displayName: r.displayName || `User ${r.userId.toString()}`,
+    });
+  }
+  return { voters, counts };
 }
 
 export async function announceEvent(
@@ -37,21 +60,53 @@ export async function announceEvent(
   chat: Chat,
   event: Event,
 ): Promise<void> {
-  const counts = await rsvpCounts(event.id);
-  const voters = event.rsvpPublic ? await loadVoters(event.id) : undefined;
+  const { voters, counts } = await loadVoters(event.id, event);
+  const chatId = Number(chat.telegramChatId);
+  const hasPhoto = Boolean(event.photoData && event.photoMime);
+  const keyboard = rsvpKeyboard(event, counts);
+
   try {
-    const msg = await api.sendMessage(
-      Number(chat.telegramChatId),
-      formatAnnouncement(event, chat.timezone, { voters }),
-      {
-        parse_mode: "HTML",
-        reply_markup: rsvpKeyboard(event.id, counts),
-        link_preview_options: { is_disabled: true },
-      },
-    );
+    let messageId: number | null = null;
+
+    if (hasPhoto) {
+      const caption = formatAnnouncement(event, chat.timezone, {
+        voters: event.rsvpPublic ? voters : undefined,
+        maxLength: TELEGRAM_CAPTION_MAX,
+      });
+      const photoMsg = await api.sendPhoto(
+        chatId,
+        new InputFile(
+          Buffer.from(event.photoData!),
+          `event.${photoExtension(event.photoMime!)}`,
+        ),
+        {
+          caption,
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        },
+      );
+      messageId = photoMsg.message_id;
+    } else {
+      const msg = await api.sendMessage(
+        chatId,
+        formatAnnouncement(event, chat.timezone, {
+          voters: event.rsvpPublic ? voters : undefined,
+        }),
+        {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+          link_preview_options: { is_disabled: true },
+        },
+      );
+      messageId = msg.message_id;
+    }
+
     await prisma.event.update({
       where: { id: event.id },
-      data: { announcementMessageId: msg.message_id },
+      data: {
+        announcementMessageId: messageId,
+        photoMessageId: hasPhoto ? messageId : null,
+      },
     });
   } catch (err) {
     console.error("Failed to announce event", err);
@@ -68,19 +123,39 @@ export async function refreshAnnouncementMessage(
   });
   if (!event?.announcementMessageId) return;
 
-  const counts = await rsvpCounts(event.id);
-  const voters = event.rsvpPublic ? await loadVoters(event.id) : undefined;
+  const { voters, counts } = await loadVoters(event.id, event);
+  const hasPhoto = Boolean(event.photoMime);
+  const keyboard = rsvpKeyboard(event, counts);
+  const chatId = Number(event.chat.telegramChatId);
+
   try {
-    await api.editMessageText(
-      Number(event.chat.telegramChatId),
-      event.announcementMessageId,
-      formatAnnouncement(event, event.chat.timezone, { voters }),
-      {
-        parse_mode: "HTML",
-        reply_markup: rsvpKeyboard(event.id, counts),
-        link_preview_options: { is_disabled: true },
-      },
-    );
+    if (hasPhoto) {
+      await api.editMessageCaption(
+        chatId,
+        event.announcementMessageId,
+        {
+          caption: formatAnnouncement(event, event.chat.timezone, {
+            voters: event.rsvpPublic ? voters : undefined,
+            maxLength: TELEGRAM_CAPTION_MAX,
+          }),
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        },
+      );
+    } else {
+      await api.editMessageText(
+        chatId,
+        event.announcementMessageId,
+        formatAnnouncement(event, event.chat.timezone, {
+          voters: event.rsvpPublic ? voters : undefined,
+        }),
+        {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+          link_preview_options: { is_disabled: true },
+        },
+      );
+    }
   } catch (err) {
     console.error("Failed to refresh announcement", err);
   }

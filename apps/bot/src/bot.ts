@@ -14,6 +14,8 @@ import {
 } from "./handlers/commands.js";
 import { handleRsvpCallback } from "./handlers/rsvp.js";
 
+export { unpinLegacyCalendarMessages } from "./services/chat.js";
+
 export function createBot(): Bot<BotContext> {
   const bot = new Bot<BotContext>(config.botToken());
 

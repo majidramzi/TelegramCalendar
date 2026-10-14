@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { EventDto, RsvpStatus } from "@tg-cal/shared";
+import type { EventDto } from "@tg-cal/shared";
+import { normalizeRsvpOptions } from "@tg-cal/shared/rsvpOptions";
+import {
+  isRsvpOpen,
+  normalizeRsvpCloseBefore,
+} from "@tg-cal/shared/rsvpWindow";
 import { deleteEvent, fetchEvent, setRsvp } from "../api";
 import type { Locale } from "../i18n";
 import { t } from "../i18n";
+import { HelpTip } from "../components/HelpTip";
 import { openInMaps } from "../maps";
 
 interface Props {
@@ -36,11 +42,11 @@ export function EventDetailPage({ locale }: Props) {
     };
   }, [navigate]);
 
-  async function onRsvp(status: RsvpStatus) {
+  async function onRsvp(optionId: string) {
     if (!id) return;
     setBusy(true);
     try {
-      const r = await setRsvp(id, status);
+      const r = await setRsvp(id, optionId);
       setEvent(r.event);
     } catch (e) {
       setError((e as Error).message);
@@ -74,15 +80,28 @@ export function EventDetailPage({ locale }: Props) {
       timeStyle: event.allDay ? undefined : "short",
     });
 
-  const counts = event.rsvpCounts ?? { going: 0, maybe: 0, not_going: 0 };
+  const options = normalizeRsvpOptions(event.rsvpOptions);
+  const counts = event.rsvpCounts ?? {};
   const hasMap = event.locationLat != null && event.locationLng != null;
   const voters = event.rsvpVoters;
+  const myOptionId = event.myOptionId;
+  const closeBefore = normalizeRsvpCloseBefore(event.rsvpCloseBeforeMinutes);
+  const rsvpOpen =
+    event.rsvpOpen ?? isRsvpOpen(event.startsAt, closeBefore);
+  const pastStart = Date.now() >= new Date(event.startsAt).getTime();
 
   return (
     <div className="detail">
       <h2>
         {event.emoji || "📢"} {event.title}
       </h2>
+      {event.hasPhoto && event.photoUrl && (
+        <img
+          src={event.photoUrl}
+          alt=""
+          className="event-photo"
+        />
+      )}
       <div className="meta">
         <div>
           {t(locale, "startsAt")}: {fmt(event.startsAt)}
@@ -107,63 +126,51 @@ export function EventDetailPage({ locale }: Props) {
       )}
       {event.description && <p>{event.description}</p>}
 
-      <h3>{t(locale, "rsvp")}</h3>
-      <p className="hint">
-        {event.rsvpPublic
-          ? t(locale, "rsvpPublicHint")
-          : t(locale, "rsvpPrivateHint")}
-      </p>
-      <p className="hint">
-        {event.rsvpLocked
-          ? t(locale, "rsvpLockedHint")
-          : t(locale, "rsvpUnlockedHint")}
-      </p>
+      <h3 className="label-row">
+        <span>{t(locale, "rsvp")}</span>
+        <HelpTip
+          text={[
+            event.rsvpPublic
+              ? t(locale, "rsvpPublicHint")
+              : t(locale, "rsvpPrivateHint"),
+            event.rsvpLocked
+              ? t(locale, "rsvpLockedHint")
+              : t(locale, "rsvpUnlockedHint"),
+          ].join(" ")}
+        />
+      </h3>
       <div className="rsvp-row">
-        <button
-          type="button"
-          className={`btn ghost${event.myRsvp === "going" ? " active" : ""}`}
-          disabled={busy}
-          onClick={() => onRsvp("going")}
-        >
-          {t(locale, "going")} ({counts.going})
-        </button>
-        <button
-          type="button"
-          className={`btn ghost${event.myRsvp === "maybe" ? " active" : ""}`}
-          disabled={busy}
-          onClick={() => onRsvp("maybe")}
-        >
-          {t(locale, "maybe")} ({counts.maybe})
-        </button>
-        <button
-          type="button"
-          className={`btn ghost${event.myRsvp === "not_going" ? " active" : ""}`}
-          disabled={busy}
-          onClick={() => onRsvp("not_going")}
-        >
-          {t(locale, "notGoing")} ({counts.not_going})
-        </button>
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            className={`btn ghost${myOptionId === opt.id ? " active" : ""}`}
+            disabled={busy || !rsvpOpen}
+            onClick={() => onRsvp(opt.id)}
+          >
+            {opt.emoji} {opt.label} ({counts[opt.id] ?? 0})
+          </button>
+        ))}
       </div>
+      {!rsvpOpen && (
+        <p className="hint">
+          {pastStart ? t(locale, "rsvpClosedPast") : t(locale, "rsvpClosed")}
+        </p>
+      )}
 
       {event.rsvpPublic && voters && (
         <div>
-          {(["going", "maybe", "not_going"] as const).map((status) => {
-            const names = voters[status] ?? [];
-            const label =
-              status === "going"
-                ? t(locale, "going")
-                : status === "maybe"
-                  ? t(locale, "maybe")
-                  : t(locale, "notGoing");
+          {options.map((opt) => {
+            const names = voters[opt.id] ?? [];
             return (
-              <div key={status}>
+              <div key={opt.id}>
                 <h4>
-                  {label} ({names.length})
+                  {opt.emoji} {opt.label} ({names.length})
                 </h4>
                 {names.length > 0 ? (
                   <ul className="voter-list">
                     {names.map((n) => (
-                      <li key={`${status}-${n}`}>{n}</li>
+                      <li key={`${opt.id}-${n}`}>{n}</li>
                     ))}
                   </ul>
                 ) : (
@@ -178,17 +185,21 @@ export function EventDetailPage({ locale }: Props) {
       {error && <p className="error">{error}</p>}
 
       <div className="actions">
-        <Link to={`/event/${event.id}/edit`} className="btn ghost">
-          {t(locale, "edit")}
-        </Link>
-        <button
-          type="button"
-          className="btn danger"
-          disabled={busy}
-          onClick={onDelete}
-        >
-          {t(locale, "delete")}
-        </button>
+        {event.canManage && (
+          <>
+            <Link to={`/event/${event.id}/edit`} className="btn ghost">
+              {t(locale, "edit")}
+            </Link>
+            <button
+              type="button"
+              className="btn danger"
+              disabled={busy}
+              onClick={onDelete}
+            >
+              {t(locale, "delete")}
+            </button>
+          </>
+        )}
         <Link to="/" className="btn ghost">
           {t(locale, "back")}
         </Link>

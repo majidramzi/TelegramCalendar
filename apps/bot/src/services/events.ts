@@ -60,6 +60,7 @@ export async function upsertRsvp(
   userId: bigint,
   status: RsvpStatus,
   displayName?: string | null,
+  optionId?: string | null,
 ) {
   const existing = await prisma.rsvp.findUnique({
     where: { eventId_userId: { eventId, userId } },
@@ -71,11 +72,13 @@ export async function upsertRsvp(
       eventId,
       userId,
       status,
+      optionId: optionId ?? null,
       displayName: displayName ?? null,
       icsSequence: 1,
     },
     update: {
       status,
+      optionId: optionId ?? null,
       icsSequence: nextSequence,
       ...(displayName ? { displayName } : {}),
     },

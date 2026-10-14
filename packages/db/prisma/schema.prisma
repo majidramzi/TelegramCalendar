@@ -57,6 +57,18 @@ model Event {
   rsvpPublic    Boolean  @default(true)
   /** When true, the first RSVP cannot be changed. */
   rsvpLocked    Boolean  @default(false)
+  /** Custom RSVP buttons: required yes/no + optional extras. Stored as JSON. */
+  rsvpOptions   Json?
+  /**
+   * Minutes before startsAt when RSVP closes.
+   * 0 = until event start; 720 = 12h before; 1440 = 1 day before.
+   */
+  rsvpCloseBeforeMinutes Int @default(0)
+  /** Optional event image (bytes + mime). */
+  photoData     Bytes?
+  photoMime     String?
+  /** Telegram message id of the photo posted above the RSVP text. */
+  photoMessageId Int?
   createdBy     BigInt
   remindBefore  Int[]    @default([1440, 60])
   announcementMessageId Int?
@@ -74,6 +86,9 @@ model Rsvp {
   event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId      BigInt
   displayName String?
+  /** Selected option id (yes / no / custom). */
+  optionId    String?
+  /** Legacy / ICS mapping: going | maybe | not_going */
   status      RsvpStatus
   /** SEQUENCE for personal .ics updates on the phone calendar. */
   icsSequence Int        @default(0)

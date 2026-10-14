@@ -1,4 +1,4 @@
-import type { EventDto, RsvpStatus } from "@tg-cal/shared";
+import type { EventDto, RsvpOption, RsvpStatus } from "@tg-cal/shared";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -24,7 +24,11 @@ async function api<T>(
 ): Promise<T> {
   const startapp = getStartAppToken();
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  // Only set JSON content-type when there is a body. Empty DELETE/GET with
+  // application/json causes Fastify to return 400 Bad Request.
+  if (options.body !== undefined && options.body !== null) {
+    headers.set("Content-Type", "application/json");
+  }
   headers.set("X-Telegram-Init-Data", getInitData());
   if (startapp) headers.set("X-Startapp", startapp);
 
@@ -35,8 +39,15 @@ async function api<T>(
 
   const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string | object;
+      message?: string;
+    };
+    const msg =
+      typeof body.error === "string"
+        ? body.error
+        : body.message || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
   return res.json() as Promise<T>;
 }
@@ -47,6 +58,8 @@ export interface ChatInfo {
   type: string;
   timezone: string;
   permissionMode: string;
+  canCreate: boolean;
+  isAdmin?: boolean;
 }
 
 export function fetchChat() {
@@ -58,9 +71,7 @@ export function fetchChat() {
     }
   })();
   const q = timezone ? `?timezone=${encodeURIComponent(timezone)}` : "";
-  return api<{ id: string; title: string; type: string; timezone: string; permissionMode: string }>(
-    `/api/chat${q}`,
-  );
+  return api<ChatInfo>(`/api/chat${q}`);
 }
 
 export function fetchEvents(params?: { from?: string; to?: string; upcoming?: boolean }) {
@@ -88,7 +99,13 @@ export function createEvent(body: {
   emoji?: string;
   rsvpPublic?: boolean;
   rsvpLocked?: boolean;
+  rsvpOptions?: RsvpOption[];
+  rsvpCloseBeforeMinutes?: number;
+  remindBefore?: number[];
   timezone?: string;
+  photoBase64?: string;
+  photoMime?: string;
+  clearPhoto?: boolean;
 }) {
   return api<{ event: EventDto }>("/api/events", {
     method: "POST",
@@ -110,7 +127,13 @@ export function updateEvent(
     emoji: string;
     rsvpPublic: boolean;
     rsvpLocked: boolean;
+    rsvpOptions: RsvpOption[];
+    rsvpCloseBeforeMinutes: number;
+    remindBefore: number[];
     timezone: string;
+    photoBase64: string;
+    photoMime: string;
+    clearPhoto: boolean;
   }>,
 ) {
   return api<{ event: EventDto }>(`/api/events/${id}`, {
@@ -123,10 +146,10 @@ export function deleteEvent(id: string) {
   return api<{ ok: boolean }>(`/api/events/${id}`, { method: "DELETE" });
 }
 
-export function setRsvp(id: string, status: RsvpStatus) {
+export function setRsvp(id: string, optionId: string, status?: RsvpStatus) {
   return api<{ event: EventDto }>(`/api/events/${id}/rsvp`, {
     method: "POST",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ optionId, ...(status ? { status } : {}) }),
   });
 }
 

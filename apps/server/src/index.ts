@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
 import { webhookCallback } from "grammy";
 import { buildApp } from "@tg-cal/api";
-import { createBot } from "@tg-cal/bot";
+import { createBot, unpinLegacyCalendarMessages } from "@tg-cal/bot";
 import {
   restorePendingReminders,
   startReminderWorker,
@@ -43,6 +43,12 @@ async function main() {
 
   const bot = createBot();
   const app = await buildApp();
+  try {
+    await unpinLegacyCalendarMessages(bot.api);
+    console.log("Unpinned legacy calendar messages (if any)");
+  } catch (err) {
+    console.error("Failed to unpin legacy calendar messages", err);
+  }
   let worker: ReturnType<typeof startReminderWorker> | null = null;
   try {
     worker = startReminderWorker();

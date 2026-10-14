@@ -60,29 +60,30 @@ export function calendarKeyboard(chatDbId: string): InlineKeyboard {
   return new InlineKeyboard().url("📅 Calendar", url);
 }
 
-export async function postAndPinCalendarMessage(
+export async function postCalendarMessage(
   api: Api,
   telegramChatId: number | bigint,
   chat: Chat,
 ): Promise<number | null> {
   const chatId = Number(telegramChatId);
   try {
+    // If an older calendar message is still pinned, unpin it (no auto-pin).
+    if (chat.calendarMessageId) {
+      try {
+        await api.unpinChatMessage(chatId, chat.calendarMessageId);
+      } catch {
+        // ignore — may already be unpinned or lack rights
+      }
+    }
+
     const msg = await api.sendMessage(
       chatId,
-      `📅 *${chat.title}* calendar\n\nOpen the shared calendar, add events, and RSVP.`,
+      `📅 *${chat.title}* calendar\n\nOpen the shared calendar, add events, and mark attendance.`,
       {
         parse_mode: "Markdown",
         reply_markup: calendarKeyboard(chat.id),
       },
     );
-
-    try {
-      await api.pinChatMessage(chatId, msg.message_id, {
-        disable_notification: true,
-      });
-    } catch {
-      // pin may fail without rights; message still posted
-    }
 
     await prisma.chat.update({
       where: { id: chat.id },
@@ -93,6 +94,28 @@ export async function postAndPinCalendarMessage(
   } catch (err) {
     console.error("Failed to post calendar message", err);
     return null;
+  }
+}
+
+/** @deprecated alias — pinning removed; use postCalendarMessage */
+export const postAndPinCalendarMessage = postCalendarMessage;
+
+/** Unpin previously pinned calendar messages (one-time cleanup for old behavior). */
+export async function unpinLegacyCalendarMessages(api: Api): Promise<void> {
+  const chats = await prisma.chat.findMany({
+    where: { calendarMessageId: { not: null } },
+    select: { id: true, telegramChatId: true, calendarMessageId: true },
+  });
+  for (const chat of chats) {
+    if (!chat.calendarMessageId) continue;
+    try {
+      await api.unpinChatMessage(
+        Number(chat.telegramChatId),
+        chat.calendarMessageId,
+      );
+    } catch {
+      // ignore — already unpinned, deleted, or missing rights
+    }
   }
 }
 

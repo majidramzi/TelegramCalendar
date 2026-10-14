@@ -6,6 +6,7 @@ import { MonthView } from "../components/MonthView";
 import { EventList } from "../components/EventList";
 import type { Locale } from "../i18n";
 import { t } from "../i18n";
+import { HelpTip } from "../components/HelpTip";
 
 interface Props {
   locale: Locale;
@@ -64,9 +65,11 @@ export function HomePage({ locale, chat }: Props) {
     <div>
       <div className="header">
         <h1>{chat.title || t(locale, "appTitle")}</h1>
-        <Link to="/new" className="btn">
-          {t(locale, "create")}
-        </Link>
+        {chat.canCreate && (
+          <Link to="/new" className="btn">
+            {t(locale, "create")}
+          </Link>
+        )}
       </div>
 
       <div className="tabs">
@@ -118,7 +121,7 @@ export function HomePage({ locale, chat }: Props) {
           <a href={icsUrl} style={{ color: "var(--tg-link)" }}>
             {t(locale, "ics")}
           </a>
-          <p className="hint">{t(locale, "icsHint")}</p>
+          <HelpTip text={t(locale, "icsHint")} />
         </div>
       )}
     </div>

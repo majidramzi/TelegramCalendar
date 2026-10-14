@@ -13,6 +13,18 @@
     "./announce": {
       "types": "./dist/announce.d.ts",
       "import": "./dist/announce.js"
+    },
+    "./rsvpOptions": {
+      "types": "./dist/rsvpOptions.d.ts",
+      "import": "./dist/rsvpOptions.js"
+    },
+    "./rsvpWindow": {
+      "types": "./dist/rsvpWindow.d.ts",
+      "import": "./dist/rsvpWindow.js"
+    },
+    "./photo": {
+      "types": "./dist/photo.d.ts",
+      "import": "./dist/photo.js"
     }
   },
 

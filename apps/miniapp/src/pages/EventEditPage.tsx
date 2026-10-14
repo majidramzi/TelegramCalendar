@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { EventDto } from "@tg-cal/shared";
+import { normalizeRsvpCloseBefore } from "@tg-cal/shared/rsvpWindow";
 import { createEvent, fetchEvent, updateEvent } from "../api";
 import { EventForm, type EventFormValues } from "../components/EventForm";
 import type { Locale } from "../i18n";
@@ -21,9 +22,15 @@ export function EventEditPage({ locale, mode }: Props) {
   useEffect(() => {
     if (mode !== "edit" || !id) return;
     fetchEvent(id)
-      .then((r) => setInitial(r.event))
+      .then((r) => {
+        if (!r.event.canManage) {
+          setError(t(locale, "noEditPermission"));
+          return;
+        }
+        setInitial(r.event);
+      })
       .catch((e: Error) => setError(e.message));
-  }, [mode, id]);
+  }, [mode, id, locale]);
 
   useEffect(() => {
     const wa = window.Telegram?.WebApp;
@@ -53,7 +60,18 @@ export function EventEditPage({ locale, mode }: Props) {
         emoji: values.emoji,
         rsvpPublic: values.rsvpPublic,
         rsvpLocked: values.rsvpLocked,
+        rsvpOptions: values.rsvpOptions,
+        rsvpCloseBeforeMinutes: values.rsvpCloseBeforeMinutes,
+        remindBefore: values.remindBefore,
         timezone: values.timezone,
+        ...(values.photoBase64 && values.photoMime
+          ? {
+              photoBase64: values.photoBase64,
+              photoMime: values.photoMime,
+            }
+          : values.clearPhoto
+            ? { clearPhoto: true }
+            : {}),
       };
       const result =
         mode === "create"
@@ -68,6 +86,17 @@ export function EventEditPage({ locale, mode }: Props) {
 
   if (mode === "edit" && !initial && !error) {
     return <p className="hint">{t(locale, "loading")}</p>;
+  }
+
+  if (mode === "edit" && error && !initial) {
+    return (
+      <div>
+        <p className="error">{error}</p>
+        <button type="button" className="btn ghost" onClick={() => navigate(-1)}>
+          {t(locale, "back")}
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -90,6 +119,13 @@ export function EventEditPage({ locale, mode }: Props) {
                 emoji: initial.emoji,
                 rsvpPublic: initial.rsvpPublic,
                 rsvpLocked: initial.rsvpLocked,
+                rsvpOptions: initial.rsvpOptions,
+                rsvpCloseBeforeMinutes: normalizeRsvpCloseBefore(
+                  initial.rsvpCloseBeforeMinutes,
+                ),
+                remindBefore: initial.remindBefore,
+                hasPhoto: initial.hasPhoto,
+                photoUrl: initial.photoUrl,
               }
             : undefined
         }

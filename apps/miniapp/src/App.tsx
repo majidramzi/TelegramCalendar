@@ -64,7 +64,13 @@ export function App() {
         />
         <Route
           path="/new"
-          element={<EventEditPage locale={locale} mode="create" />}
+          element={
+            chat.canCreate ? (
+              <EventEditPage locale={locale} mode="create" />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
